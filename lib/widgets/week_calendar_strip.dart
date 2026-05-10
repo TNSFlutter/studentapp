@@ -94,6 +94,7 @@ class WeekCalendarStrip extends StatelessWidget {
         const SizedBox(height: 16),
         GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onHorizontalDragUpdate: (_) {},
           onHorizontalDragEnd: (details) {
             final v = details.primaryVelocity;
             if (v == null) return;
@@ -103,25 +104,29 @@ class WeekCalendarStrip extends StatelessWidget {
               onPrevWeek?.call();
             }
           },
-          child: Row(
-            children: List.generate(7, (i) {
+          child: Builder(
+            builder: (_) {
               final weekStart = _sundayStartOfWeek(selectedDate);
-              final d = weekStart.add(Duration(days: i));
-              final inMonth = d.month == focusedDate.month;
-              final isSel = selectedDate.year == d.year &&
-                  selectedDate.month == d.month &&
-                  selectedDate.day == d.day;
-              final shortDow = short[d.weekday % 7];
-              return Expanded(
-                child: WeekDayCell(
-                  day: d.day,
-                  shortDow: shortDow,
-                  selected: isSel,
-                  muted: !inMonth,
-                  onTap: () => onDayPicked(d),
-                ),
+              return Row(
+                children: List.generate(7, (i) {
+                  final d = weekStart.add(Duration(days: i));
+                  final inMonth = d.month == focusedDate.month;
+                  final isSel = selectedDate.year == d.year &&
+                      selectedDate.month == d.month &&
+                      selectedDate.day == d.day;
+                  final shortDow = short[d.weekday % 7];
+                  return Expanded(
+                    child: WeekDayCell(
+                      day: d.day,
+                      shortDow: shortDow,
+                      selected: isSel,
+                      muted: !inMonth,
+                      onTap: () => onDayPicked(d),
+                    ),
+                  );
+                }),
               );
-            }),
+            },
           ),
         ),
         const SizedBox(height: 16),
