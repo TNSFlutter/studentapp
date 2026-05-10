@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -130,9 +132,19 @@ class _WebViewDialogState extends State<_WebViewDialog> {
           onPageFinished: (_) {
             if (mounted) setState(() => _loading = false);
           },
+          onWebResourceError: (_) {
+            if (mounted) setState(() => _loading = false);
+          },
         ),
-      )
-      ..loadRequest(Uri.parse(widget.url));
+      );
+    final uri = Uri.tryParse(widget.url);
+    if (uri != null) {
+      _controller.loadRequest(uri);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _loading = false);
+      });
+    }
   }
 
   @override
@@ -180,27 +192,31 @@ class _AudioDialogState extends State<_AudioDialog> {
   bool _playing = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  final List<StreamSubscription<dynamic>> _subs = [];
 
   @override
   void initState() {
     super.initState();
     _player = AudioPlayer();
-    _player.onPlayerStateChanged.listen((state) {
+    _subs.add(_player.onPlayerStateChanged.listen((state) {
       if (mounted) setState(() => _playing = state == PlayerState.playing);
-    });
-    _player.onPositionChanged.listen((pos) {
+    }));
+    _subs.add(_player.onPositionChanged.listen((pos) {
       if (mounted) setState(() => _position = pos);
-    });
-    _player.onDurationChanged.listen((dur) {
+    }));
+    _subs.add(_player.onDurationChanged.listen((dur) {
       if (mounted) setState(() => _duration = dur);
-    });
-    _player.onPlayerComplete.listen((_) {
+    }));
+    _subs.add(_player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _playing = false);
-    });
+    }));
   }
 
   @override
   void dispose() {
+    for (final s in _subs) {
+      s.cancel();
+    }
     _player.dispose();
     super.dispose();
   }
