@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:studentapp/widgets/common_app_bar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../constants/app_colors.dart';
+import '../../helpers/theme_adaptive.dart';
+import '../../controllers/live_class_controller.dart';
+import '../../models/live_class_models.dart';
 
 class LiveClassScreen extends StatefulWidget {
   const LiveClassScreen({super.key});
@@ -11,46 +16,112 @@ class LiveClassScreen extends StatefulWidget {
 }
 
 class _LiveClassScreenState extends State<LiveClassScreen> {
-  DateTime _selectedDate = DateTime(2025, 11, 27);
-  DateTime _currentMonth = DateTime(2025, 11);
+  DateTime _selectedDate = DateTime.now();
+  late DateTime _currentMonth = DateTime(_selectedDate.year, _selectedDate.month);
+  final LiveClassController _liveClassController = LiveClassController();
+  final List<LiveClassItem> _classes = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClassesForSelectedDate();
+  }
+
+  Future<void> _loadClassesForSelectedDate() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final date = DateFormat('yyyy-MM-dd').format(_selectedDate);
+    final parsed = await _liveClassController.fetchLiveClasses(
+      yyyyMmDd: date,
+      limit: 10,
+    );
+    if (!mounted) return;
+    if (!parsed.success) {
+      setState(() {
+        _error = parsed.message.isNotEmpty
+            ? parsed.message
+            : 'Could not load live classes.';
+        _classes.clear();
+        _loading = false;
+      });
+      return;
+    }
+    setState(() {
+      _classes
+        ..clear()
+        ..addAll(parsed.data);
+      _loading = false;
+      _error = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
+      backgroundColor: ThemeAdaptive.pageBackground(context),
       appBar: const CommonAppBar(title: 'Live Class'),
-      body: Container(
-        decoration: const BoxDecoration(color: Colors.white),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Calendar Section
-              _buildCalendarSection(),
-              const SizedBox(height: 20),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Calendar Section
+            _buildCalendarSection(),
+            const SizedBox(height: 20),
 
-              // Active Live Class Section
+            if (_loading)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: CircularProgressIndicator(
+                  color: scheme.primary,
+                ),
+              ),
+            if (!_loading && _error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: scheme.error,
+                        fontSize: 14,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _loadClassesForSelectedDate,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            if (!_loading && _error == null && _classes.isNotEmpty) ...[
               _buildActiveLiveClassSection(),
               const SizedBox(height: 20),
-
-              // Upcoming Live Class Section
               _buildUpcomingLiveClassSection(),
               const SizedBox(height: 20),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 
   Widget _buildCalendarSection() {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.all(20),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: ThemeAdaptive.cardShadow(context, lightAlpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -106,85 +177,21 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
 
           // Days of Week Header
           Row(
-            children: const [
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'SUN',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
+            children: ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+                .map(
+                  (d) => Expanded(
+                    child: Center(
+                      child: Text(
+                        d,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: scheme.onSurface,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'MON',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'TUE',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'WED',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'THU',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'FRI',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'SAT',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+                )
+                .toList(),
           ),
           const SizedBox(height: 12),
 
@@ -197,7 +204,7 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
             width: 40,
             height: 2,
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
+              color: scheme.outlineVariant,
               borderRadius: BorderRadius.circular(1),
             ),
           ),
@@ -207,6 +214,7 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
   }
 
   Widget _buildCalendarDates() {
+    final scheme = Theme.of(context).colorScheme;
     final firstDayOfMonth = DateTime(
       _currentMonth.year,
       _currentMonth.month,
@@ -242,6 +250,7 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
               setState(() {
                 _selectedDate = date;
               });
+              _loadClassesForSelectedDate();
             },
             child: Container(
               height: 40,
@@ -262,7 +271,7 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : Colors.grey.shade600,
+                    color: isSelected ? Colors.white : scheme.onSurface,
                   ),
                 ),
               ),
@@ -288,212 +297,207 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
   }
 
   Widget _buildActiveLiveClassSection() {
+    final scheme = Theme.of(context).colorScheme;
+    final active = _classes.where((e) => e.isLive).toList();
+    if (active.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Active Live Class',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: scheme.onSurface,
             ),
           ),
           const SizedBox(height: 16),
-          _buildLiveClassCard(
-            subjectIcon: 'ENG',
-            title: 'English Live Class',
-            topic: 'Topic- Explanation on Tenses',
-            duration: 'Duration- 40 mins',
-            dateTime: '27 Nov 2025, 12:30 PM',
-            showJoinButton: true,
-          ),
+          for (int i = 0; i < active.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            _buildLiveClassCard(item: active[i]),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildUpcomingLiveClassSection() {
+    final scheme = Theme.of(context).colorScheme;
+    final upcoming = _classes.where((e) => !e.isLive).toList();
+    if (upcoming.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Upcoming Live Class',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
+              color: scheme.onSurface,
             ),
           ),
           const SizedBox(height: 16),
-          _buildLiveClassCard(
-            subjectIcon: 'PHY',
-            title: 'Physics Live Class',
-            topic: 'Topic- Refraction of Lenses',
-            duration: 'Duration- 40 mins',
-            dateTime: '27 Nov 2025, 02:30 PM',
-            showJoinButton: false,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLiveClassCard({
-    required String subjectIcon,
-    required String title,
-    required String topic,
-    required String duration,
-    required String dateTime,
-    required bool showJoinButton,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              // Subject Icon
-              Container(
-                width: 50,
-                height: 50,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppColors.accentOrange, Color(0xFFFFD700)],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: Text(
-                    subjectIcon,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              // Class Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      topic,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      duration,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                dateTime,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-              if (showJoinButton)
-                ElevatedButton(
-                  onPressed: () {
-                    _showJoinClassDialog(title);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.accentOrange,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                  ),
-                  child: const Text(
-                    'Join Now',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showJoinClassDialog(String className) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Join Live Class'),
-          content: Text('Join $className?'),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                // Here you would implement the actual join class logic
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Joining $className...'),
-                    backgroundColor: AppColors.accentOrange,
-                  ),
-                );
-              },
-              child: const Text('Join'),
-            ),
+          for (int i = 0; i < upcoming.length; i++) ...[
+            if (i > 0) const SizedBox(height: 12),
+            _buildLiveClassCard(item: upcoming[i]),
           ],
-        );
-      },
+        ],
+      ),
+    );
+  }
+
+  String _subjectBadge(String s) {
+    final t = s.trim();
+    if (t.isEmpty) return 'CLS';
+    if (t.length >= 3) return t.substring(0, 3).toUpperCase();
+    return t.toUpperCase();
+  }
+
+  String _dateTime(String? startIso) {
+    final t = startIso?.trim() ?? '';
+    if (t.isEmpty) return 'Date unavailable';
+    final dt = DateTime.tryParse(t)?.toLocal();
+    if (dt == null) return t;
+    return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+  }
+
+  Future<void> _joinClass(LiveClassItem item) async {
+    final link = item.link?.trim() ?? '';
+    if (link.isEmpty) return;
+    final uri = Uri.tryParse(link);
+    if (uri == null || !uri.hasScheme) return;
+    final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open class link')),
+      );
+    }
+  }
+
+  Widget _buildLiveClassCard({required LiveClassItem item}) {
+    final scheme = Theme.of(context).colorScheme;
+    final title = item.heading.isNotEmpty
+        ? item.heading
+        : (item.name.isNotEmpty ? item.name : 'Live Class');
+    final topic = item.description.isNotEmpty
+        ? 'Topic- ${item.description}'
+        : 'Topic- ${item.subjectName}';
+    final duration = 'Duration- ${item.duration} mins';
+    final dateTime = _dateTime(item.startTime);
+    final showJoinButton = item.joinNow;
+    final subjectIcon = _subjectBadge(item.subjectName);
+
+    return Material(
+      color: scheme.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _joinClass(item),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: ThemeAdaptive.cardShadow(context, lightAlpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  // Subject Icon
+                  Container(
+                    width: 50,
+                    height: 50,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [AppColors.accentOrange, Color(0xFFFFD700)],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        subjectIcon,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  // Class Details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: scheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          topic,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          duration,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      dateTime,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.open_in_new_rounded,
+                    size: 18,
+                    color: showJoinButton
+                        ? AppColors.accentOrange
+                        : scheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

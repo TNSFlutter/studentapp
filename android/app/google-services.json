@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "379342007983",
+    "project_id": "levnextmyschool",
+    "storage_bucket": "levnextmyschool.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:379342007983:android:7ee5a5161476500cb6ee5a",
+        "android_client_info": {
+          "package_name": "com.levnext.myschool"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBa_ncwIRz5h-GE_Ttrfci6rsbhFtIJdn8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

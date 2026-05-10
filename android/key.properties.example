@@ -1,0 +1,15 @@
+# Copy to android/key.properties (same folder as this file).
+# Never commit key.properties (gitignored).
+#
+# Keystore path is relative to the android/ folder.
+# Example: keystore at project root studentapp/levnextkey → use:
+#   storeFile=../levnextkey
+#
+# Example:
+#   cp key.properties.example key.properties
+#   # Edit passwords and alias below.
+
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=YOUR_KEY_ALIAS
+storeFile=../levnextkey

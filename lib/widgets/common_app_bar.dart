@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../constants/app_colors.dart';
+import '../helpers/app_navigation.dart';
+import '../views/message/message_screen.dart';
+import 'bottom_nav_scope.dart';
 
 class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -12,6 +15,12 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Color? titleColor;
   final Color? iconColor;
 
+  /// Rounded, translucent back button (e.g. Change Language on orange).
+  final bool frostedLeadingBackground;
+
+  /// When false, uses a solid [backgroundColor] only (no decorative asset image).
+  final bool showBackgroundPattern;
+
   const CommonAppBar({
     super.key,
     required this.title,
@@ -22,36 +31,102 @@ class CommonAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.backgroundColor,
     this.titleColor,
     this.iconColor,
+    this.frostedLeadingBackground = false,
+    this.showBackgroundPattern = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final hideForBottomNav = BottomNavScope.isInBottomNavRoot(context);
+    final shouldShowBackButton = showBackButton && !hideForBottomNav;
+    final theme = Theme.of(context);
+    final appBarTheme = theme.appBarTheme;
+    final resolvedBackground =
+        backgroundColor ??
+        appBarTheme.backgroundColor ??
+        AppColors.accentOrange;
+    final titleStyleColor =
+        titleColor ?? appBarTheme.foregroundColor ?? AppColors.cardWhite;
+    final actionIconColor =
+        iconColor ?? appBarTheme.foregroundColor ?? AppColors.cardWhite;
+    final backIconColor =
+        iconColor ?? appBarTheme.foregroundColor ?? AppColors.cardWhite;
+
     return Container(
-      height: 120,
+      height: 100,
       decoration: BoxDecoration(
-        color: backgroundColor ?? AppColors.accentOrange,
-        image: DecorationImage(
-          image: AssetImage('assets/images/app_bar_background.png'),
-          fit: BoxFit.fitWidth,
-        ),
+        color: resolvedBackground,
+        image: showBackgroundPattern
+            ? DecorationImage(
+                image: AssetImage('assets/images/app_bar_background.png'),
+                fit: BoxFit.fitWidth,
+              )
+            : null,
       ),
       child: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
-        leading: showBackButton == true
-            ? IconButton(
-                onPressed: onBackPressed ?? () => Navigator.pop(context),
-                icon: Icon(Icons.arrow_back, color: AppColors.cardWhite),
-              )
+        leading: shouldShowBackButton
+            ? frostedLeadingBackground
+                  ? Padding(
+                      padding: const EdgeInsets.only(
+                        left: 8,
+                        top: 8,
+                        bottom: 8,
+                      ),
+                      child: Material(
+                        color: titleStyleColor.withValues(alpha: 0.20),
+                        borderRadius: BorderRadius.circular(10),
+                        child: IconButton(
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 40,
+                          ),
+                          onPressed:
+                              onBackPressed ?? () => Navigator.pop(context),
+                          icon: Icon(
+                            Icons.arrow_back,
+                            color: backIconColor,
+                            size: 22,
+                          ),
+                          splashRadius: 22,
+                        ),
+                      ),
+                    )
+                  : IconButton(
+                      onPressed: onBackPressed ?? () => Navigator.pop(context),
+                      icon: Icon(Icons.arrow_back, color: backIconColor),
+                    )
             : null,
-        title: Text(title, style: TextStyle(color: AppColors.cardWhite)),
-        actions: [
-          IconButton(
-            onPressed: onNotificationPressed,
-            icon: Icon(Icons.notifications, color: AppColors.cardWhite),
+        title: Text(
+          title,
+          style: TextStyle(
+            color: titleStyleColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
           ),
-        ],
+        ),
+        actions: showNotificationIcon
+            ? [
+                IconButton(
+                  onPressed:
+                      onNotificationPressed ??
+                      () {
+                        AppNavigation.push(
+                          context,
+                          const MessageScreen(showBackButton: true),
+                        );
+                      },
+                  icon: Icon(
+                    Icons.notifications_outlined,
+                    color: actionIconColor,
+                    size: 26,
+                  ),
+                ),
+              ]
+            : const [],
       ),
 
       // SafeArea(

@@ -1,6 +1,6 @@
 {
-    "name": "studentapp",
-    "short_name": "studentapp",
+    "name": "Parents App",
+    "short_name": "Parents App",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

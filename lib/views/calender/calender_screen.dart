@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:studentapp/widgets/common_app_bar.dart';
 
 import '../../constants/app_colors.dart';
+import '../../controllers/holiday_calendar_controller.dart';
+import '../../helpers/theme_adaptive.dart';
+import '../../models/calendar_models.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -11,65 +15,119 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  DateTime _selectedDate = DateTime(2024, 1, 17);
-  DateTime _focusedDate = DateTime(2024, 1, 17);
+  final HolidayCalendarController _holidayCalendarController =
+      HolidayCalendarController();
+
+  late DateTime _selectedDate;
+  late DateTime _focusedDate;
+
+  bool _loading = true;
+  String? _error;
+  final List<CalendarHoliday> _holidays = [];
+  CalendarStudent? _student;
+  int _holidayTotal = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _focusedDate = DateTime(now.year, now.month, 1);
+    _selectedDate = DateTime(now.year, now.month, now.day);
+    _fetchHolidays();
+  }
+
+  @override
+  void dispose() {
+    _holidayCalendarController.dispose();
+    super.dispose();
+  }
+
+  void _syncSelectedDateToFocusedMonth() {
+    final now = DateTime.now();
+    if (now.year == _focusedDate.year && now.month == _focusedDate.month) {
+      _selectedDate = DateTime(now.year, now.month, now.day);
+    } else {
+      _selectedDate = DateTime(_focusedDate.year, _focusedDate.month, 1);
+    }
+  }
+
+  Future<void> _fetchHolidays() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final parsed = await _holidayCalendarController.fetchHolidays(
+      month: _focusedDate.month,
+      year: _focusedDate.year,
+      limit: 100,
+    );
+    if (!mounted) return;
+    if (!parsed.success) {
+      setState(() {
+        _error = parsed.message.isNotEmpty
+            ? parsed.message
+            : 'holiday_error_load'.tr;
+        _holidays.clear();
+        _loading = false;
+      });
+      return;
+    }
+    final data = parsed.data;
+    final list = data?.holidaysFor(
+          _focusedDate.year,
+          _focusedDate.month,
+        ) ??
+        [];
+    setState(() {
+      _holidays
+        ..clear()
+        ..addAll(list);
+      _student = data?.student;
+      _holidayTotal = parsed.pagination.total;
+      _loading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: const CommonAppBar(title: 'Holiday Calendar'),
-      body: Container(
-        decoration: const BoxDecoration(color: Color(0xFFFFF7ED)),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Summary Cards
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _buildSummaryCard(
-                        number: '11',
-                        label: 'Present',
-                        backgroundColor: AppColors.accentOrange,
-                        textColor: Colors.white,
+      backgroundColor: ThemeAdaptive.warmPageBackground(context),
+      appBar: CommonAppBar(title: 'more_holiday_calendar'.tr),
+      body: RefreshIndicator(
+          color: AppColors.accentOrange,
+          onRefresh: _fetchHolidays,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 14,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildSummaryCard(
-                        number: '03',
-                        label: 'Absent',
-                        backgroundColor: Colors.white,
-                        textColor: AppColors.statusRed,
-                        numberColor: AppColors.statusRed,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildSummaryCard(
-                        number: '03',
-                        label: 'Leave',
-                        backgroundColor: Colors.white,
-                        textColor: Colors.grey,
-                        numberColor: Colors.blue,
-                      ),
-                    ),
-                  ],
+                  ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: _buildSummaryRow(context),
                 ),
-              ),
 
               // Calendar Card
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: scheme.surface,
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
+                        color: ThemeAdaptive.cardShadow(context),
                         blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
@@ -89,17 +147,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   _focusedDate = DateTime(
                                     _focusedDate.year,
                                     _focusedDate.month - 1,
+                                    1,
                                   );
+                                  _syncSelectedDateToFocusedMonth();
                                 });
+                                _fetchHolidays();
                               },
-                              icon: const Icon(Icons.chevron_left),
+                              icon: Icon(
+                                Icons.chevron_left,
+                                color: scheme.onSurfaceVariant,
+                              ),
                             ),
                             Text(
                               '${_getMonthName(_focusedDate.month)} ${_focusedDate.year}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.black,
+                                color: scheme.onSurface,
                               ),
                             ),
                             IconButton(
@@ -108,10 +172,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   _focusedDate = DateTime(
                                     _focusedDate.year,
                                     _focusedDate.month + 1,
+                                    1,
                                   );
+                                  _syncSelectedDateToFocusedMonth();
                                 });
+                                _fetchHolidays();
                               },
-                              icon: const Icon(Icons.chevron_right),
+                              icon: Icon(
+                                Icons.chevron_right,
+                                color: scheme.onSurfaceVariant,
+                              ),
                             ),
                           ],
                         ),
@@ -119,13 +189,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
                         // Days of Week Header
                         Row(
-                          children: const [
+                          children: [
                             Expanded(
                               child: Center(
                                 child: Text(
-                                  'SUN',
+                                  'weekday_short_sun'.tr,
                                   style: TextStyle(
-                                    color: Colors.grey,
+                                    color: scheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -134,9 +204,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             Expanded(
                               child: Center(
                                 child: Text(
-                                  'MON',
+                                  'weekday_short_mon'.tr,
                                   style: TextStyle(
-                                    color: Colors.grey,
+                                    color: scheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -145,9 +215,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             Expanded(
                               child: Center(
                                 child: Text(
-                                  'TUE',
+                                  'weekday_short_tue'.tr,
                                   style: TextStyle(
-                                    color: Colors.grey,
+                                    color: scheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -156,9 +226,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             Expanded(
                               child: Center(
                                 child: Text(
-                                  'WED',
+                                  'weekday_short_wed'.tr,
                                   style: TextStyle(
-                                    color: Colors.grey,
+                                    color: scheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -167,9 +237,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             Expanded(
                               child: Center(
                                 child: Text(
-                                  'THU',
+                                  'weekday_short_thu'.tr,
                                   style: TextStyle(
-                                    color: Colors.grey,
+                                    color: scheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -178,9 +248,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             Expanded(
                               child: Center(
                                 child: Text(
-                                  'FRI',
+                                  'weekday_short_fri'.tr,
                                   style: TextStyle(
-                                    color: Colors.grey,
+                                    color: scheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -189,9 +259,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             Expanded(
                               child: Center(
                                 child: Text(
-                                  'SAT',
+                                  'weekday_short_sat'.tr,
                                   style: TextStyle(
-                                    color: Colors.grey,
+                                    color: scheme.onSurfaceVariant,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -201,8 +271,22 @@ class _CalendarScreenState extends State<CalendarScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // Calendar Grid
-                        _buildCalendarGrid(),
+                        if (_loading)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.accentOrange,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          _buildCalendarGrid(),
                       ],
                     ),
                   ),
@@ -211,50 +295,36 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
               const SizedBox(height: 24),
 
-              // Upcoming Events Section
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Upcoming Events',
+                    Text(
+                      'holiday_this_month'.tr,
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                        color: scheme.onSurface,
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildEventItem(
-                      month: 'JAN',
-                      day: '13',
-                      title: 'Lohri',
-                      subtitle: 'Festival of Harvest',
-                      type: 'Holiday',
-                      date: '23 Jan 2025',
-                      typeColor: AppColors.accentOrange,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildEventItem(
-                      month: 'JAN',
-                      day: '25',
-                      title: 'Sports Meet',
-                      subtitle: 'Function at School',
-                      type: 'Event',
-                      date: '20 Jan 2025',
-                      typeColor: Colors.blue,
-                    ),
-                    const SizedBox(height: 12),
-                    _buildEventItem(
-                      month: 'JAN',
-                      day: '26',
-                      title: 'Republic Day',
-                      subtitle: 'Celebrated due to',
-                      type: 'Holiday',
-                      date: '18 Jan 2025',
-                      typeColor: AppColors.accentOrange,
-                    ),
+                    if (!_loading && _holidays.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'holiday_none_this_month'.tr,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    else if (!_loading)
+                      for (int i = 0; i < _holidays.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 12),
+                        _buildHolidayEventItem(context, _holidays[i]),
+                      ],
                   ],
                 ),
               ),
@@ -262,11 +332,94 @@ class _CalendarScreenState extends State<CalendarScreen> {
             ],
           ),
         ),
-      ),
+          ),
     );
   }
 
-  Widget _buildSummaryCard({
+  Widget _buildSummaryRow(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: _buildSummaryCard(
+            context,
+            number: '$_holidayTotal',
+            label: 'holiday_holidays'.tr,
+            backgroundColor: AppColors.accentOrange,
+            textColor: Colors.white,
+          ),
+        ),
+        if (_student != null) ...[
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: ThemeAdaptive.cardShadow(context),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _student!.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _student!.classSection,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildHolidayEventItem(BuildContext context, CalendarHoliday h) {
+    final scheme = Theme.of(context).colorScheme;
+    final shortMonth = _shortMonthName(_focusedDate.month);
+    return _buildEventItem(
+      context,
+      month: shortMonth,
+      day: '${h.day}',
+      title: h.name,
+      subtitle: h.description == null || h.description!.isEmpty
+          ? (h.officialHoliday ? 'holiday_school_holiday'.tr : 'holiday_observance'.tr)
+          : h.description!,
+      type: h.officialHoliday ? 'holiday_official'.tr : 'linked_devices_other'.tr,
+      date: h.formattedDate,
+      typeColor: h.officialHoliday ? AppColors.accentOrange : scheme.primary,
+    );
+  }
+
+  String _shortMonthName(int m) {
+    return _getMonthName(m).substring(0, 3).toUpperCase();
+  }
+
+  Widget _buildSummaryCard(
+    BuildContext context, {
     required String number,
     required String label,
     required Color backgroundColor,
@@ -280,7 +433,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: ThemeAdaptive.cardShadow(context),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -304,72 +457,80 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   Widget _buildCalendarGrid() {
+    final scheme = Theme.of(context).colorScheme;
     final firstDayOfMonth = DateTime(_focusedDate.year, _focusedDate.month, 1);
     final lastDayOfMonth = DateTime(
       _focusedDate.year,
       _focusedDate.month + 1,
       0,
     );
-    final firstWeekday =
-        firstDayOfMonth.weekday % 7; // Convert to 0-6 (Sunday = 0)
+    final firstWeekday = firstDayOfMonth.weekday % 7;
     final totalDays = lastDayOfMonth.day;
+
+    final holidayDays = <int>{
+      for (final h in _holidays) h.day,
+    };
 
     List<Widget> calendarDays = [];
 
-    // Add empty cells for days before the first day of the month
     for (int i = 0; i < firstWeekday; i++) {
       calendarDays.add(const Expanded(child: SizedBox()));
     }
 
-    // Add all days of the month
     for (int day = 1; day <= totalDays; day++) {
       final date = DateTime(_focusedDate.year, _focusedDate.month, day);
-      final isSelected =
-          day == _selectedDate.day && _focusedDate.month == _selectedDate.month;
-      final isEventDay = [13, 25, 26].contains(day);
+      final isSelected = _selectedDate.year == date.year &&
+          _selectedDate.month == date.month &&
+          _selectedDate.day == date.day;
+      final isHoliday = holidayDays.contains(day);
 
-      Color dayColor = Colors.grey;
-      if ([1, 2, 3, 7, 8, 9, 10, 14, 15, 16].contains(day)) {
-        dayColor = Colors.green;
-      } else if ([4, 11, 12].contains(day)) {
-        dayColor = Colors.red;
-      } else if (day == 5) {
-        dayColor = Colors.blue;
-      }
+      final Color dayColor =
+          isHoliday ? AppColors.accentOrange : scheme.onSurface;
 
       calendarDays.add(
         Expanded(
-          child: Container(
-            height: 40,
-            margin: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.accentOrange : Colors.transparent,
-              shape: BoxShape.circle,
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Text(
-                  '$day',
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : dayColor,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedDate = date;
+                });
+              },
+              customBorder: const CircleBorder(),
+              child: Container(
+                height: 40,
+                margin: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.accentOrange : Colors.transparent,
+                  shape: BoxShape.circle,
                 ),
-                if (isEventDay)
-                  Positioned(
-                    bottom: 2,
-                    child: Container(
-                      width: 4,
-                      height: 4,
-                      decoration: const BoxDecoration(
-                        color: AppColors.accentOrange,
-                        shape: BoxShape.circle,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Text(
+                      '$day',
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : dayColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-              ],
+                    if (isHoliday && !isSelected)
+                      Positioned(
+                        bottom: 2,
+                        child: Container(
+                          width: 4,
+                          height: 4,
+                          decoration: const BoxDecoration(
+                            color: AppColors.accentOrange,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -390,7 +551,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return Column(children: calendarRows);
   }
 
-  Widget _buildEventItem({
+  Widget _buildEventItem(
+    BuildContext context, {
     required String month,
     required String day,
     required String title,
@@ -399,14 +561,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
     required String date,
     required Color typeColor,
   }) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: ThemeAdaptive.cardShadow(context),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -419,7 +582,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             width: 50,
             height: 50,
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
+              color: ThemeAdaptive.neutralFillStrong(context),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Column(
@@ -427,18 +590,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
               children: [
                 Text(
                   month,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey,
+                    color: scheme.onSurfaceVariant,
                   ),
                 ),
                 Text(
                   day,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: scheme.onSurface,
                   ),
                 ),
               ],
@@ -452,16 +615,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: scheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -481,7 +647,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
               const SizedBox(height: 4),
               Text(
                 date,
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -491,19 +660,19 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   String _getMonthName(int month) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
+    final months = [
+      'month_january'.tr,
+      'month_february'.tr,
+      'month_march'.tr,
+      'month_april'.tr,
+      'month_may'.tr,
+      'month_june'.tr,
+      'month_july'.tr,
+      'month_august'.tr,
+      'month_september'.tr,
+      'month_october'.tr,
+      'month_november'.tr,
+      'month_december'.tr,
     ];
     return months[month - 1];
   }

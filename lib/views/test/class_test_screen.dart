@@ -1,156 +1,391 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:studentapp/widgets/common_app_bar.dart';
 
 import '../../constants/app_colors.dart';
+import '../../controllers/class_test_controller.dart';
+import '../../helpers/theme_adaptive.dart';
+import '../../models/class_test_models.dart';
 
-class ClassTestScreen extends StatelessWidget {
+class ClassTestScreen extends StatefulWidget {
   const ClassTestScreen({super.key});
+
+  @override
+  State<ClassTestScreen> createState() => _ClassTestScreenState();
+}
+
+class _ClassTestScreenState extends State<ClassTestScreen> {
+  final ClassTestController _classTestController = ClassTestController();
+
+  static const int _pageLimit = 10;
+
+  ClassTestStudent? _student;
+  List<ClassTestResult> _todayResults = [];
+  ClassTestSummary _todaySummary = ClassTestSummary.empty();
+  List<ClassTestResult> _previousResults = [];
+  ClassTestSummary _previousSummary = ClassTestSummary.empty();
+  ClassTestPagination _pagination = ClassTestPagination.empty();
+  String? _nextCursor;
+
+  bool _loading = true;
+  bool _loadingMore = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetch(reset: true);
+  }
+
+  @override
+  void dispose() {
+    _classTestController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetch({required bool reset}) async {
+    if (_loadingMore) return;
+    if (!reset) {
+      if (!_pagination.hasNextPage) return;
+      final c = _nextCursor?.trim();
+      if (c == null || c.isEmpty) return;
+    }
+
+    if (reset) {
+      setState(() {
+        _loading = true;
+        _error = null;
+        _nextCursor = null;
+      });
+    } else {
+      setState(() => _loadingMore = true);
+    }
+
+    final cursor = reset ? null : _nextCursor;
+    final parsed = await _classTestController.fetchClassTests(
+      limit: _pageLimit,
+      cursor: cursor,
+    );
+
+    if (!mounted) return;
+
+    if (!parsed.success || parsed.data == null) {
+      setState(() {
+        _error = parsed.message.isNotEmpty
+            ? parsed.message
+            : 'class_test_error_load'.tr;
+        if (reset) {
+          _todayResults = [];
+          _previousResults = [];
+        }
+        _loading = false;
+        _loadingMore = false;
+      });
+      return;
+    }
+
+    final d = parsed.data!;
+    setState(() {
+      _student = d.student;
+      _todayResults = List<ClassTestResult>.from(d.today.results);
+      _todaySummary = d.today.summary;
+      if (reset) {
+        _previousResults = List<ClassTestResult>.from(d.previous.results);
+      } else {
+        _appendPreviousDeduped(d.previous.results);
+      }
+      _previousSummary = d.previous.summary;
+      _pagination = parsed.pagination;
+      _nextCursor = parsed.pagination.nextCursor;
+      _loading = false;
+      _loadingMore = false;
+    });
+  }
+
+  void _appendPreviousDeduped(List<ClassTestResult> more) {
+    final seen = _previousResults.map((e) => e.id).toSet();
+    for (final r in more) {
+      if (!seen.contains(r.id)) {
+        seen.add(r.id);
+        _previousResults.add(r);
+      }
+    }
+  }
+
+  Future<void> _loadMore() => _fetch(reset: false);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const CommonAppBar(title: 'Class Test'),
-      body: Container(
-        decoration: const BoxDecoration(color: Colors.white),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Today's Class Test Section
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Today's Class Test",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+      backgroundColor: ThemeAdaptive.warmPageBackground(context),
+      appBar: CommonAppBar(title: 'class_test_title'.tr),
+      body: RefreshIndicator(
+          color: AppColors.accentOrange,
+          onRefresh: () => _fetch(reset: true),
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_error != null && !_loading)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Column(
+                        children: [
+                          Text(
+                            _error!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontSize: 14,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => _fetch(reset: true),
+                            child: Text('common_retry'.tr),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-
-                    // Hindi Class Test Card
-                    _buildClassTestCard(
-                      subject: 'Hindi Class Test',
-                      testDate: '03 Nov 2024',
-                      maxMarks: '20',
-                      obtainedMarks: '15',
-                      timestamp: '09 Nov 2025, 4:45 PM',
-                    ),
+                  if (_student != null) _buildStudentHeader(_student!),
+                  if (_loading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 48),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.accentOrange,
+                        ),
+                      ),
+                    )
+                  else ...[
+                    _buildSectionTitle('class_test_today'.tr),
+                    const SizedBox(height: 8),
+                    _buildSummaryRow(_todaySummary),
                     const SizedBox(height: 12),
-
-                    // Physics Class Test Card
-                    _buildClassTestCard(
-                      subject: 'Physics Class Test',
-                      testDate: '08 Nov 2024',
-                      maxMarks: '30',
-                      obtainedMarks: '27',
-                      timestamp: '09 Nov 2025, 4:45 PM',
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Previous Class Test Section
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Previous Class Test',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                    if (_todayResults.isEmpty)
+                      _buildEmptyHint('class_test_none_today'.tr)
+                    else
+                      ..._todayResults.map(
+                        (r) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _buildResultCard(r),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // English Class Test Card
-                    _buildClassTestCard(
-                      subject: 'English Class Test',
-                      testDate: '01 Nov 2024',
-                      maxMarks: '10',
-                      obtainedMarks: '6',
-                      timestamp: '06 Nov 2025, 8:45 AM',
-                    ),
+                    const SizedBox(height: 24),
+                    _buildSectionTitle('class_test_previous'.tr),
+                    const SizedBox(height: 8),
+                    _buildSummaryRow(_previousSummary),
+                    const SizedBox(height: 12),
+                    if (_previousResults.isEmpty)
+                      _buildEmptyHint('class_test_none_previous'.tr)
+                    else
+                      ..._previousResults.map(
+                        (r) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _buildResultCard(r),
+                        ),
+                      ),
+                    if (_pagination.hasNextPage) ...[
+                      const SizedBox(height: 8),
+                      Center(
+                        child: _loadingMore
+                            ? const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.accentOrange,
+                                  ),
+                                ),
+                              )
+                            : TextButton.icon(
+                                onPressed: _loadMore,
+                                icon: const Icon(Icons.expand_more),
+                                label: Text('common_load_more'.tr),
+                              ),
+                      ),
+                    ],
                   ],
-                ),
+                  const SizedBox(height: 20),
+                ],
               ),
-              const SizedBox(height: 20),
-            ],
+            ),
           ),
+          ),
+    );
+  }
+
+  Widget _buildStudentHeader(ClassTestStudent s) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? AppColors.accentOrange.withValues(alpha: 0.12)
+              : const Color(0xFFFFF7ED),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.accentOrange.withValues(alpha: 0.35),
+          ),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.school_outlined, color: AppColors.accentOrange),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.name,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  Text(
+                    s.classSection,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildClassTestCard({
-    required String subject,
-    required String testDate,
-    required String maxMarks,
-    required String obtainedMarks,
-    required String timestamp,
-  }) {
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(ClassTestSummary s) {
+    return Text(
+      '${'common_total'.tr} ${s.totalTests} · ${'common_present'.tr} ${s.presentTests} · '
+      '${'common_absent'.tr} ${s.absentTests} · N/A ${s.naTests}',
+      style: TextStyle(
+        fontSize: 13,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+
+  Widget _buildEmptyHint(String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 14,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultCard(ClassTestResult r) {
+    final scheme = Theme.of(context).colorScheme;
+    final title = r.subject.name.isNotEmpty
+        ? '${r.subject.name} · Class test'
+        : r.classTestName;
+    final dateLabel = r.formattedTestDate.isNotEmpty
+        ? r.formattedTestDate
+        : r.testDate;
+    final obtained = r.isAbsent
+        ? 'common_absent'.tr
+        : (r.isNa ? 'N/A' : r.obtainedMarks);
+    final pct = r.isAbsent || r.isNa ? '' : ' (${r.percentage.toStringAsFixed(1)}%)';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: ThemeAdaptive.cardShadow(context, lightAlpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon Circle
           Container(
             width: 50,
             height: 50,
-            decoration: const BoxDecoration(
-              color: AppColors.accentOrange,
+            decoration: BoxDecoration(
+              color: r.isAbsent || r.isNa
+                  ? scheme.outline
+                  : AppColors.accentOrange,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.checklist, color: Colors.white, size: 24),
+            child: Icon(
+              r.isAbsent
+                  ? Icons.event_busy
+                  : (r.isNa ? Icons.help_outline : Icons.checklist),
+              color: Colors.white,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 16),
-          // Content
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  subject,
-                  style: const TextStyle(
+                  title,
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: scheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Test Date: $testDate',
-                  style: const TextStyle(fontSize: 14, color: Colors.black),
+                  '${'class_test_date'.tr}: $dateLabel',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
+                if (r.marksStatus.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    r.marksStatus,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
-                // Marks Display
                 Row(
                   children: [
-                    // Max Marks
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Max Marks',
+                          'class_test_max_marks'.tr,
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.accentOrange,
@@ -158,22 +393,21 @@ class ClassTestScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          maxMarks,
-                          style: const TextStyle(
+                          '${r.maxMarks}',
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                            color: scheme.onSurface,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(width: 32),
-                    // Obtained Marks
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Obtained Marks',
+                          'exam_result_obtained'.tr,
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.accentOrange,
@@ -181,11 +415,11 @@ class ClassTestScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          obtainedMarks,
-                          style: const TextStyle(
+                          '$obtained$pct',
+                          style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                            color: scheme.onSurface,
                           ),
                         ),
                       ],
@@ -193,12 +427,16 @@ class ClassTestScreen extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Timestamp
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
-                    timestamp,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    r.formattedCreatedOn.isNotEmpty
+                        ? r.formattedCreatedOn
+                        : r.createdOn,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ],

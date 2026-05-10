@@ -1,10 +1,16 @@
-import 'dart:math';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 
 import '../../constants/app_colors.dart';
+import '../../controllers/auth_controller.dart';
+import '../../helpers/app_navigation.dart';
 import '../select_student/select_student_screen.dart';
+import 'forgot_password_screen.dart';
+import 'login_otp_screen.dart';
 
+/// Peach → white gradient & typography aligned with product login mockup.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -14,458 +20,599 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _isPasswordVisible = false;
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  late final AuthController _authController;
+
+  static const Color _headingBlue = Color(0xFF15245C);
+  static const Color _labelGray = Color(0xFF4B5563);
+  static const Color _hintGray = Color(0xFF9CA3AF);
+  static const Color _fieldBorder = Color(0xFFE5E7EB);
+  static const Color _lockGold = Color(0xFFD4A024);
+
+  @override
+  void initState() {
+    super.initState();
+    _authController = Get.find<AuthController>();
+  }
 
   @override
   void dispose() {
-    _phoneController.dispose();
-    _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    _authController.usernameError.value = '';
+    _authController.passwordError.value = '';
+
+    final bool success = await _authController.login();
+
+    if (!mounted) return;
+
+    if (success) {
+      _authController.takePendingLoginSuccessMessage();
+      await AppNavigation.pushReplacement(context, const SelectStudentScreen());
+    }
+  }
+
+  void _onLoginWithOtp() {
+    final phone = _authController.usernameController.text.trim();
+    AppNavigation.push<void>(context, LoginOtpScreen(initialPhone: phone));
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(color: AppColors.backgroundLight),
-        child: Stack(
-          children: [
-            // Background pattern with educational doodles
-            Positioned.fill(
-              bottom: 400,
-              left: 0,
-              right: 0,
-              top: 0,
-              child: Image.asset(
-                'assets/images/background_without_bg.png',
-                opacity: const AlwaysStoppedAnimation<double>(0.4),
-                fit: BoxFit.fill,
-                width: MediaQuery.of(context).size.width,
-                height: 500,
-              ),
-            ),
-            Positioned.fill(
-              bottom: -10,
-              left: 0,
-              right: 0,
-              top: 550,
-              child: Image.asset(
-                'assets/images/background_without_bg.png',
-                opacity: const AlwaysStoppedAnimation<double>(0.4),
-                fit: BoxFit.fill,
-                width: MediaQuery.of(context).size.width,
-                height: 500,
-              ),
-            ),
-
-            // Main content
-            SafeArea(
-              child: Column(
-                children: [
-                  const SizedBox(height: 60),
-                  // Logo and branding
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Image.asset(
-                        'assets/images/big_logo.png',
-                        height: 80,
-                        width: 80,
-                      ),
-                      const SizedBox(width: 16),
-                      Column(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFF4EC), Color(0xFFFFFBF7), Colors.white],
+            stops: [0.0, 0.45, 1.0],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              padding: const EdgeInsets.only(top: 12),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 24,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 8),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 22),
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          _brandHeader(),
+                          const SizedBox(height: 28),
                           const Text(
-                            'XScholar ERP',
+                            'Welcome back 👋',
+                            textAlign: TextAlign.left,
                             style: TextStyle(
                               fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primaryBlue,
+                              height: 1.2,
+                              fontWeight: FontWeight.w800,
+                              color: _headingBlue,
                             ),
                           ),
-                          const Text(
-                            'Parents App',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.accentOrange,
+                          const SizedBox(height: 12),
+                          Text(
+                            "Sign in to stay connected with your child's school activities",
+                            textAlign: TextAlign.left,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontSize: 15,
+                              height: 1.55,
+                              color: _hintGray,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 60),
-                  // Login card
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Card(
-                        elevation: 8,
-                        shadowColor: AppColors.shadowBlack.withValues(
-                          alpha: 0.1,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.all(32),
+                    ),
+                    const SizedBox(height: 20),
+
+                    ClipPath(
+                      clipper: _LoginTopWaveClipper(),
+                      child: ColoredBox(
+                        color: Colors.white,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 48, 22, 16),
                           child: Column(
-                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Welcome message
                               const Text(
-                                'Welcome Back, Parents!',
+                                'MOBILE NUMBER',
                                 style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.primaryBlue,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 40),
-                              // Phone number field
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: AppColors.inputFieldLightBlue,
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                                child: TextFormField(
-                                  controller: _phoneController,
-                                  keyboardType: TextInputType.phone,
-                                  decoration: InputDecoration(
-                                    hintText: 'Phone number',
-                                    hintStyle: const TextStyle(
-                                      color: AppColors.textDarkGrey,
-                                    ),
-                                    prefixIcon: const Icon(
-                                      Icons.person,
-                                      color: AppColors.textDarkGrey,
-                                    ),
-                                    border: InputBorder.none,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
-                                    ),
-                                  ),
+                                  fontSize: 11,
+                                  letterSpacing: 1.2,
+                                  fontWeight: FontWeight.w800,
+                                  color: _labelGray,
                                 ),
                               ),
-                              const SizedBox(height: 20),
-                              // Password field
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: AppColors.inputFieldLightBlue,
-                                  borderRadius: BorderRadius.circular(25),
-                                ),
-                                child: TextFormField(
-                                  controller: _passwordController,
-                                  obscureText: !_isPasswordVisible,
-                                  decoration: InputDecoration(
-                                    hintText: 'Password',
-                                    hintStyle: const TextStyle(
-                                      color: AppColors.textDarkGrey,
+                              const SizedBox(height: 10),
+                              Obx(
+                                () => Container(
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color:
+                                          _authController
+                                              .usernameError
+                                              .value
+                                              .isNotEmpty
+                                          ? AppColors.statusRed
+                                          : _fieldBorder,
+                                      width: 1,
                                     ),
-                                    prefixIcon: const Icon(
-                                      Icons.lock,
-                                      color: AppColors.textDarkGrey,
-                                    ),
-                                    suffixIcon: IconButton(
-                                      icon: Icon(
-                                        _isPasswordVisible
-                                            ? Icons.visibility_off
-                                            : Icons.visibility,
-                                        color: AppColors.textDarkGrey,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.04,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 2),
                                       ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _isPasswordVisible =
-                                              !_isPasswordVisible;
-                                        });
-                                      },
-                                    ),
-                                    border: InputBorder.none,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 16,
-                                    ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      const SizedBox(width: 14),
+                                      const Text(
+                                        '🇮🇳',
+                                        style: TextStyle(fontSize: 18),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        '+91',
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF374151),
+                                        ),
+                                      ),
+                                      const Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        color: Color(0xFF9CA3AF),
+                                        size: 22,
+                                      ),
+                                      Container(
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                        ),
+                                        width: 1,
+                                        height: 22,
+                                        color: _fieldBorder,
+                                      ),
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: _authController
+                                              .usernameController,
+                                          keyboardType: TextInputType.phone,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            color: Color(0xFF1F2937),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          decoration: const InputDecoration(
+                                            filled: false,
+                                            hintText: 'Enter mobile number',
+                                            hintStyle: TextStyle(
+                                              color: _hintGray,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            border: InputBorder.none,
+                                            enabledBorder: InputBorder.none,
+                                            focusedBorder: InputBorder.none,
+                                            disabledBorder: InputBorder.none,
+                                            errorBorder: InputBorder.none,
+                                            focusedErrorBorder:
+                                                InputBorder.none,
+                                            contentPadding: EdgeInsets.only(
+                                              right: 14,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 40),
-                              // Login button
-                              SizedBox(
-                                width: double.infinity,
-                                height: 56,
-                                child: ElevatedButton(
+                              Obx(
+                                () =>
+                                    _authController
+                                        .usernameError
+                                        .value
+                                        .isNotEmpty
+                                    ? Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 8,
+                                          left: 4,
+                                        ),
+                                        child: Text(
+                                          _authController.usernameError.value,
+                                          style: const TextStyle(
+                                            color: AppColors.statusRed,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      )
+                                    : const SizedBox.shrink(),
+                              ),
+                              const SizedBox(height: 18),
+                              const Text(
+                                'PASSWORD',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  letterSpacing: 1.2,
+                                  fontWeight: FontWeight.w800,
+                                  color: _labelGray,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Obx(
+                                () => Container(
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color:
+                                          _authController
+                                              .passwordError
+                                              .value
+                                              .isNotEmpty
+                                          ? AppColors.statusRed
+                                          : _fieldBorder,
+                                      width: 1,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(
+                                          alpha: 0.04,
+                                        ),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Row(
+                                    children: [
+                                      const SizedBox(width: 14),
+                                      Icon(
+                                        Icons.lock_outline_rounded,
+                                        color: _lockGold,
+                                        size: 22,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: TextFormField(
+                                          controller: _authController
+                                              .passwordController,
+                                          obscureText: !_isPasswordVisible,
+                                          textAlignVertical:
+                                              TextAlignVertical.center,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            height: 1.2,
+                                            color: Color(0xFF1F2937),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          decoration: const InputDecoration(
+                                            filled: false,
+                                            hintText: 'Enter password',
+                                            hintStyle: TextStyle(
+                                              color: _hintGray,
+                                              fontWeight: FontWeight.w500,
+                                              height: 1.2,
+                                            ),
+                                            isDense: true,
+                                            border: InputBorder.none,
+                                            enabledBorder: InputBorder.none,
+                                            focusedBorder: InputBorder.none,
+                                            disabledBorder: InputBorder.none,
+                                            errorBorder: InputBorder.none,
+                                            focusedErrorBorder:
+                                                InputBorder.none,
+                                            contentPadding: EdgeInsets.zero,
+                                            isCollapsed: true,
+                                          ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        visualDensity: VisualDensity.compact,
+                                        splashRadius: 22,
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(
+                                          minWidth: 44,
+                                          minHeight: 44,
+                                        ),
+                                        icon: Icon(
+                                          _isPasswordVisible
+                                              ? Icons.visibility_off_outlined
+                                              : Icons.visibility_outlined,
+                                          color: const Color(0xFF9CA3AF),
+                                          size: 22,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _isPasswordVisible =
+                                                !_isPasswordVisible;
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(width: 6),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              Obx(
+                                () =>
+                                    _authController
+                                        .passwordError
+                                        .value
+                                        .isNotEmpty
+                                    ? Padding(
+                                        padding: const EdgeInsets.only(
+                                          top: 8,
+                                          left: 4,
+                                        ),
+                                        child: Text(
+                                          _authController.passwordError.value,
+                                          style: const TextStyle(
+                                            color: AppColors.statusRed,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      )
+                                    : const SizedBox.shrink(),
+                              ),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(
                                   onPressed: () {
-                                    // TODO: Implement actual login logic
-                                    // For now, navigate to select student screen
-                                    Navigator.pushReplacement(
+                                    AppNavigation.push<void>(
                                       context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            const SelectStudentScreen(),
-                                      ),
+                                      const ForgotPasswordScreen(),
                                     );
                                   },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.accentOrange,
-                                    foregroundColor: Colors.white,
+                                  style: TextButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 2,
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Forgot Password?',
+                                    style: TextStyle(
+                                      color: AppColors.accentOrange,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Obx(
+                                () => SizedBox(
+                                  width: double.infinity,
+                                  height: 54,
+                                  child: ElevatedButton(
+                                    onPressed: _authController.isLoading.value
+                                        ? null
+                                        : _handleLogin,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          _authController.isLoading.value
+                                          ? const Color(0xFFB8BDC7)
+                                          : AppColors.accentOrange,
+                                      foregroundColor: Colors.white,
+                                      elevation: 4,
+                                      shadowColor: const Color(0x40F97316),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    child: _authController.isLoading.value
+                                        ? const SizedBox(
+                                            width: 22,
+                                            height: 22,
+                                            child: CircularProgressIndicator(
+                                              color: Colors.white,
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Text(
+                                            'Login',
+                                            style: TextStyle(
+                                              fontSize: 17,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 54,
+                                child: OutlinedButton(
+                                  onPressed: _onLoginWithOtp,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.accentOrange,
+                                    side: const BorderSide(
+                                      color: AppColors.accentOrange,
+                                      width: 2,
+                                    ),
+                                    backgroundColor: Colors.white,
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(28),
+                                      borderRadius: BorderRadius.circular(14),
                                     ),
                                     elevation: 0,
                                   ),
-                                  child: const Text(
-                                    'Login',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 28,
+                                        height: 28,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.accentOrange,
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.chat_bubble_outline_rounded,
+                                          color: Colors.white,
+                                          size: 16,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Text(
+                                        'Login with OTP',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
+                              const SizedBox(height: 36),
+                              Center(
+                                child: RichText(
+                                  text: const TextSpan(
+                                    style: TextStyle(
+                                      color: Color(0xFF9CA3AF),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    children: [
+                                      TextSpan(text: 'Powered by '),
+                                      TextSpan(
+                                        text: 'LevNext',
+                                        style: TextStyle(
+                                          color: Color(0xFF374151),
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
                             ],
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  // Footer
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 40),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Powered by ',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textDarkGrey,
-                          ),
-                        ),
-                        Text(
-                          'LevNext',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textDarkGrey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+
+  /// Logo + product name (visible above the fold; matches reference header band).
+  Widget _brandHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          height: 52,
+          width: 52,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: AppColors.accentOrange,
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.accentOrange.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Image.asset(
+              'assets/images/big_logo.png',
+              height: 30,
+              width: 30,
+              fit: BoxFit.contain,
+            ),
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'XScholar',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  color: _headingBlue,
+                  height: 1.1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'PARENTS APP',
+                style: TextStyle(
+                  fontSize: 12,
+                  letterSpacing: 1.4,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.accentOrange,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-// Custom painter for the background doodles (same as welcome screen)
-class DoodleBackgroundPainter extends CustomPainter {
+/// Soft wave along the top edge of the white form sheet (transition from peach gradient).
+class _LoginTopWaveClipper extends CustomClipper<Path> {
   @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.doodleLightGrey
-      ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
+  Path getClip(Size size) {
+    final w = size.width;
+    // Stronger amplitude + slightly shorter wavelength so the divider reads more “curved”.
+    const base = 6.0;
+    const amplitude = 22.0;
+    double yAt(double x) {
+      final t = (x / w) * math.pi * 2.6;
+      final wave = 0.5 + 0.5 * math.sin(t);
+      return base + amplitude * wave;
+    }
 
-    // Draw various educational doodles
-    _drawGraduationCap(canvas, paint, size.width * 0.1, size.height * 0.15);
-    _drawGlobe(canvas, paint, size.width * 0.85, size.height * 0.2);
-    _drawRocket(canvas, paint, size.width * 0.15, size.height * 0.3);
-    _drawSmartphone(canvas, paint, size.width * 0.8, size.height * 0.35);
-    _drawRobot(canvas, paint, size.width * 0.05, size.height * 0.5);
-    _drawSoccerBall(canvas, paint, size.width * 0.9, size.height * 0.55);
-    _drawMusicalNotes(canvas, paint, size.width * 0.2, size.height * 0.65);
-    _drawTestTubes(canvas, paint, size.width * 0.75, size.height * 0.7);
-    _drawApple(canvas, paint, size.width * 0.1, size.height * 0.8);
-    _drawLightbulb(canvas, paint, size.width * 0.85, size.height * 0.85);
-    _drawSpeechBubbles(canvas, paint, size.width * 0.3, size.height * 0.9);
-    _drawStars(canvas, paint, size.width * 0.7, size.height * 0.25);
-    _drawLetters(canvas, paint, size.width * 0.4, size.height * 0.4);
-    _drawArrows(canvas, paint, size.width * 0.6, size.height * 0.75);
-  }
-
-  void _drawGraduationCap(Canvas canvas, Paint paint, double x, double y) {
-    // Square base
-    canvas.drawRect(Rect.fromLTWH(x, y, 20, 20), paint);
-    // Tassel
-    canvas.drawLine(Offset(x + 10, y), Offset(x + 10, y - 15), paint);
-    canvas.drawCircle(Offset(x + 10, y - 15), 3, paint);
-  }
-
-  void _drawGlobe(Canvas canvas, Paint paint, double x, double y) {
-    canvas.drawCircle(Offset(x, y), 15, paint);
-    // Meridians
-    canvas.drawLine(Offset(x - 15, y), Offset(x + 15, y), paint);
-    canvas.drawLine(Offset(x, y - 15), Offset(x, y + 15), paint);
-  }
-
-  void _drawRocket(Canvas canvas, Paint paint, double x, double y) {
-    // Body
-    canvas.drawRect(Rect.fromLTWH(x, y, 12, 20), paint);
-    // Nose cone
-    final path = Path()
-      ..moveTo(x + 6, y)
-      ..lineTo(x, y - 8)
-      ..lineTo(x + 12, y - 8)
+    final path = Path()..moveTo(0, yAt(0));
+    for (double x = 4; x <= w; x += 4) {
+      path.lineTo(x, yAt(x));
+    }
+    path
+      ..lineTo(w, size.height)
+      ..lineTo(0, size.height)
       ..close();
-    canvas.drawPath(path, paint);
-  }
-
-  void _drawSmartphone(Canvas canvas, Paint paint, double x, double y) {
-    canvas.drawRect(Rect.fromLTWH(x, y, 18, 25), paint);
-    // Screen
-    canvas.drawRect(Rect.fromLTWH(x + 2, y + 2, 14, 21), paint);
-  }
-
-  void _drawRobot(Canvas canvas, Paint paint, double x, double y) {
-    // Head
-    canvas.drawRect(Rect.fromLTWH(x, y, 20, 20), paint);
-    // Eyes
-    canvas.drawCircle(Offset(x + 6, y + 6), 2, paint);
-    canvas.drawCircle(Offset(x + 14, y + 6), 2, paint);
-    // Body
-    canvas.drawRect(Rect.fromLTWH(x + 5, y + 20, 10, 15), paint);
-  }
-
-  void _drawSoccerBall(Canvas canvas, Paint paint, double x, double y) {
-    canvas.drawCircle(Offset(x, y), 12, paint);
-    // Pattern lines
-    canvas.drawLine(Offset(x - 12, y), Offset(x + 12, y), paint);
-    canvas.drawLine(Offset(x, y - 12), Offset(x, y + 12), paint);
-  }
-
-  void _drawMusicalNotes(Canvas canvas, Paint paint, double x, double y) {
-    // Note head
-    canvas.drawCircle(Offset(x, y), 3, paint);
-    // Stem
-    canvas.drawLine(Offset(x + 3, y), Offset(x + 3, y - 12), paint);
-    // Flag
-    final path = Path()
-      ..moveTo(x + 3, y - 12)
-      ..quadraticBezierTo(x + 8, y - 12, x + 8, y - 8)
-      ..quadraticBezierTo(x + 8, y - 4, x + 3, y - 4);
-    canvas.drawPath(path, paint);
-  }
-
-  void _drawTestTubes(Canvas canvas, Paint paint, double x, double y) {
-    // Tube 1
-    canvas.drawRect(Rect.fromLTWH(x, y, 8, 20), paint);
-    // Tube 2
-    canvas.drawRect(Rect.fromLTWH(x + 12, y, 8, 20), paint);
-  }
-
-  void _drawApple(Canvas canvas, Paint paint, double x, double y) {
-    // Apple body
-    canvas.drawCircle(Offset(x, y), 10, paint);
-    // Stem
-    canvas.drawLine(Offset(x, y - 10), Offset(x, y - 15), paint);
-    // Leaf
-    final path = Path()
-      ..moveTo(x, y - 15)
-      ..quadraticBezierTo(x + 5, y - 18, x + 8, y - 15);
-    canvas.drawPath(path, paint);
-  }
-
-  void _drawLightbulb(Canvas canvas, Paint paint, double x, double y) {
-    // Bulb
-    canvas.drawCircle(Offset(x, y), 12, paint);
-    // Base
-    canvas.drawRect(Rect.fromLTWH(x - 8, y + 12, 16, 8), paint);
-    // Filament
-    canvas.drawLine(Offset(x - 8, y), Offset(x + 8, y), paint);
-    canvas.drawLine(Offset(x, y - 8), Offset(x, y + 8), paint);
-  }
-
-  void _drawSpeechBubbles(Canvas canvas, Paint paint, double x, double y) {
-    // Main bubble
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, y, 20, 15),
-        const Radius.circular(8),
-      ),
-      paint,
-    );
-    // Tail
-    final path = Path()
-      ..moveTo(x + 5, y + 15)
-      ..lineTo(x + 8, y + 20)
-      ..lineTo(x + 11, y + 15);
-    canvas.drawPath(path, paint);
-  }
-
-  void _drawStars(Canvas canvas, Paint paint, double x, double y) {
-    for (int i = 0; i < 3; i++) {
-      final starX = x + i * 8;
-      final starY = y + i * 5;
-      _drawStar(canvas, paint, starX, starY, 4);
-    }
-  }
-
-  void _drawStar(Canvas canvas, Paint paint, double x, double y, double size) {
-    final path = Path();
-    for (int i = 0; i < 5; i++) {
-      final angle = i * 2 * 3.14159 / 5;
-      final outerX = x + size * cos(angle);
-      final outerY = y + size * sin(angle);
-      if (i == 0) {
-        path.moveTo(outerX, outerY);
-      } else {
-        path.lineTo(outerX, outerY);
-      }
-
-      final innerAngle = angle + 3.14159 / 5;
-      final innerX = x + size * 0.5 * cos(innerAngle);
-      final innerY = y + size * 0.5 * sin(innerAngle);
-      path.lineTo(innerX, innerY);
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  void _drawLetters(Canvas canvas, Paint paint, double x, double y) {
-    // Letter A
-    final pathA = Path()
-      ..moveTo(x, y + 15)
-      ..lineTo(x + 8, y)
-      ..lineTo(x + 16, y + 15)
-      ..moveTo(x + 3, y + 10)
-      ..lineTo(x + 13, y + 10);
-    canvas.drawPath(pathA, paint);
-
-    // ABC text
-    canvas.drawLine(Offset(x + 20, y + 8), Offset(x + 28, y + 8), paint);
-    canvas.drawLine(Offset(x + 20, y + 12), Offset(x + 28, y + 12), paint);
-  }
-
-  void _drawArrows(Canvas canvas, Paint paint, double x, double y) {
-    // Right arrow
-    final rightArrow = Path()
-      ..moveTo(x, y)
-      ..lineTo(x + 12, y)
-      ..lineTo(x + 8, y - 4)
-      ..moveTo(x + 12, y)
-      ..lineTo(x + 8, y + 4);
-    canvas.drawPath(rightArrow, paint);
-
-    // Left arrow
-    final leftArrow = Path()
-      ..moveTo(x + 20, y)
-      ..lineTo(x + 8, y)
-      ..lineTo(x + 12, y - 4)
-      ..moveTo(x + 8, y)
-      ..lineTo(x + 12, y + 4);
-    canvas.drawPath(leftArrow, paint);
+    return path;
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
