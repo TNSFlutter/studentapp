@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:studentapp/widgets/common_app_bar.dart';
+import 'package:studentapp/widgets/week_calendar_strip.dart';
 
 import '../../constants/app_colors.dart';
+import '../../controllers/timetable_controller.dart';
+import '../../helpers/theme_adaptive.dart';
+import '../../models/timetable_models.dart';
 
 class TimetableScreen extends StatefulWidget {
   const TimetableScreen({super.key});
@@ -11,398 +16,318 @@ class TimetableScreen extends StatefulWidget {
 }
 
 class _TimetableScreenState extends State<TimetableScreen> {
-  DateTime _selectedDate = DateTime(2025, 11, 27);
-  DateTime _focusedDate = DateTime(2025, 11, 27);
+  final TimetableController _timetableController = TimetableController();
+
+  late DateTime _selectedDate;
+  late DateTime _focusedDate;
+
+  bool _loading = true;
+  String? _error;
+  String _sectionSubtitle = '';
+  String _dayTitle = '';
+  final List<TimetableEntry> _entries = [];
+
+  static String _toYmd(DateTime d) {
+    final y = d.year.toString().padLeft(4, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y-$m-$day';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _focusedDate = DateTime(now.year, now.month, 1);
+    _selectedDate = DateTime(now.year, now.month, now.day);
+    _fetchTimetable();
+  }
+
+  @override
+  void dispose() {
+    _timetableController.dispose();
+    super.dispose();
+  }
+
+  void _syncSelectedToFocusedMonth() {
+    final now = DateTime.now();
+    if (now.year == _focusedDate.year && now.month == _focusedDate.month) {
+      _selectedDate = DateTime(now.year, now.month, now.day);
+    } else {
+      _selectedDate = DateTime(_focusedDate.year, _focusedDate.month, 1);
+    }
+  }
+
+  Future<void> _fetchTimetable() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final parsed = await _timetableController.fetchTimetable(
+      yyyyMmDd: _toYmd(_selectedDate),
+      limit: 10,
+    );
+    if (!mounted) return;
+    if (!parsed.success) {
+      setState(() {
+        _error = parsed.message.isNotEmpty
+            ? parsed.message
+            : 'timetable_error_load'.tr;
+        _entries.clear();
+        _dayTitle = '';
+        _sectionSubtitle = '';
+        _loading = false;
+      });
+      return;
+    }
+    final data = parsed.data;
+    if (data == null) {
+      setState(() {
+        _entries.clear();
+        _dayTitle = '';
+        _sectionSubtitle = '';
+        _loading = false;
+      });
+      return;
+    }
+    setState(() {
+      _entries
+        ..clear()
+        ..addAll(data.timetable);
+      _dayTitle = '${data.dayName} · ${data.date}';
+      _sectionSubtitle =
+          data.classSection == null ? '' : data.classSection!.name;
+      _loading = false;
+    });
+  }
+
+  void _onDayPicked(DateTime day) {
+    setState(() {
+      _selectedDate = DateTime(day.year, day.month, day.day);
+      _focusedDate = DateTime(day.year, day.month, 1);
+    });
+    _fetchTimetable();
+  }
+
+  void _onPrevWeek() {
+    setState(() {
+      _selectedDate = _selectedDate.subtract(const Duration(days: 7));
+      _focusedDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
+    });
+    _fetchTimetable();
+  }
+
+  void _onNextWeek() {
+    setState(() {
+      _selectedDate = _selectedDate.add(const Duration(days: 7));
+      _focusedDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
+    });
+    _fetchTimetable();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: const CommonAppBar(title: 'Timetable'),
-      body: Container(
-        decoration: const BoxDecoration(color: Color(0xFFFFF7ED)),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Calendar Section
-              Container(
-                margin: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
+      backgroundColor: ThemeAdaptive.warmPageBackground(context),
+      appBar: CommonAppBar(title: 'timetable_title'.tr),
+      body: RefreshIndicator(
+          color: AppColors.accentOrange,
+          onRefresh: _fetchTimetable,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 14,
+                      ),
                     ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      // Month Navigation
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _focusedDate = DateTime(
-                                  _focusedDate.year,
-                                  _focusedDate.month - 1,
-                                );
-                              });
-                            },
-                            icon: const Icon(Icons.chevron_left),
-                          ),
-                          Text(
-                            '< ${_getMonthName(_focusedDate.month).toUpperCase()} >',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.accentOrange,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _focusedDate = DateTime(
-                                  _focusedDate.year,
-                                  _focusedDate.month + 1,
-                                );
-                              });
-                            },
-                            icon: const Icon(Icons.chevron_right),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Days of Week Header
-                      Row(
-                        children: const [
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                'SUN',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                'MON',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                'TUE',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                'WED',
-                                style: TextStyle(
-                                  color: AppColors.accentOrange,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                'THU',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                'FRI',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                'SAT',
-                                style: TextStyle(
-                                  color: Colors.black,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Dates Row
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                '24',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                '25',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                '26',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Container(
-                                width: 60,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFFFFA44F),
-                                      AppColors.accentOrange,
-                                    ],
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'WED',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Text(
-                                        '27',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                '28',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                '30',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const Expanded(child: SizedBox()),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Scroll indicator line
-                      Container(
-                        height: 2,
-                        width: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(1),
-                        ),
+                  ),
+                // Calendar Section
+                Container(
+                  margin: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: ThemeAdaptive.cardShadow(context),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
                       ),
                     ],
                   ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: WeekCalendarStrip(
+                      focusedDate: _focusedDate,
+                      selectedDate: _selectedDate,
+                      monthTitle:
+                          '< ${localizedMonthName(_focusedDate.month).toUpperCase()} >',
+                      onDayPicked: _onDayPicked,
+                      onPrevMonth: () {
+                        setState(() {
+                          _focusedDate = DateTime(
+                            _focusedDate.year,
+                            _focusedDate.month - 1,
+                            1,
+                          );
+                          _syncSelectedToFocusedMonth();
+                        });
+                        _fetchTimetable();
+                      },
+                      onNextMonth: () {
+                        setState(() {
+                          _focusedDate = DateTime(
+                            _focusedDate.year,
+                            _focusedDate.month + 1,
+                            1,
+                          );
+                          _syncSelectedToFocusedMonth();
+                        });
+                        _fetchTimetable();
+                      },
+                      onPrevWeek: _onPrevWeek,
+                      onNextWeek: _onNextWeek,
+                    ),
+                  ),
                 ),
-              ),
-
-              // Today's Timetable Section
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Today's Timetable",
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                // Timetable list
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'timetable_today'.tr,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: scheme.onSurface,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Period Cards
-                    _buildPeriodCard(
-                      periodNumber: '1',
-                      subject: 'ENGLISH',
-                      teacher: 'Ms. Deepika',
-                      room: 'Room-56',
-                      time: '9:00 to 10:00',
-                    ),
-                    const SizedBox(height: 12),
-
-                    _buildPeriodCard(
-                      periodNumber: '2',
-                      subject: 'HINDI',
-                      teacher: 'Mrs. Komal',
-                      room: 'Room-42',
-                      time: '10:00 to 10:30',
-                    ),
-                    const SizedBox(height: 12),
-
-                    _buildPeriodCard(
-                      periodNumber: '3',
-                      subject: 'MATHEMATICS',
-                      teacher: 'Mr. Mohit',
-                      room: 'Room-56',
-                      time: '10:30 to 11:00',
-                    ),
-                    const SizedBox(height: 12),
-
-                    _buildPeriodCard(
-                      periodNumber: '4',
-                      subject: 'SOCIAL STUDIES',
-                      teacher: 'Mrs. Ritu',
-                      room: 'Room-56',
-                      time: '11:00 to 11:30',
-                    ),
-                    const SizedBox(height: 12),
-
-                    _buildPeriodCard(
-                      periodNumber: '5',
-                      subject: 'SCIENCE',
-                      teacher: 'Mr. Ankit',
-                      room: 'Room-45',
-                      time: '11:30 to 12:00',
-                    ),
-                  ],
+                      if (_dayTitle.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          _dayTitle,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      if (_sectionSubtitle.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _sectionSubtitle,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.accentOrange,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      if (_loading)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 32),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.accentOrange,
+                            ),
+                          ),
+                        )
+                      else if (_entries.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Text(
+                            'timetable_none_day'.tr,
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        )
+                      else
+                        ...List.generate(
+                          _entries.length * 2 - 1,
+                          (i) {
+                            if (i.isOdd) {
+                              return const SizedBox(height: 12);
+                            }
+                            final e = _entries[i ~/ 2];
+                            return _buildPeriodCard(
+                              index: i ~/ 2,
+                              entry: e,
+                            );
+                          },
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
-        ),
-      ),
+          ),
     );
   }
 
   Widget _buildPeriodCard({
-    required String periodNumber,
-    required String subject,
-    required String teacher,
-    required String room,
-    required String time,
+    required int index,
+    required TimetableEntry entry,
   }) {
+    final p = entry.period;
+    final s = entry.subject;
+    final staff = entry.staff;
+    final teacher = staff.name ?? '—';
+    final scheme = Theme.of(context).colorScheme;
+    final time =
+        '${p.formattedStartTime} – ${p.formattedEndTime}';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: ThemeAdaptive.neutralFill(context),
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: ThemeAdaptive.cardShadow(context, lightAlpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Period Badge
           Container(
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
+              color: ThemeAdaptive.neutralFillStrong(context),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  'Period',
+                Text(
+                  'timetable_period'.tr,
                   style: TextStyle(
                     fontSize: 10,
-                    color: Colors.grey,
+                    color: scheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 Text(
-                  periodNumber,
+                  '${index + 1}',
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -413,43 +338,56 @@ class _TimetableScreenState extends State<TimetableScreen> {
             ),
           ),
           const SizedBox(width: 16),
-          // Subject and Teacher
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  subject,
-                  style: const TextStyle(
+                  s.name.toUpperCase(),
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: scheme.onSurface,
                   ),
                 ),
+                if (p.name.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    p.name,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Text(
                   teacher,
-                  style: const TextStyle(fontSize: 14, color: Colors.black),
+                  style: TextStyle(fontSize: 14, color: scheme.onSurface),
                 ),
               ],
             ),
           ),
-          // Room and Time
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                room,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppColors.accentOrange,
-                  fontWeight: FontWeight.w600,
+              if (p.halfName.isNotEmpty)
+                Text(
+                  p.halfName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.accentOrange,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
+              if (p.halfName.isNotEmpty) const SizedBox(height: 4),
               Text(
                 time,
-                style: const TextStyle(fontSize: 14, color: Colors.black),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: scheme.onSurface,
+                ),
+                textAlign: TextAlign.end,
               ),
             ],
           ),
@@ -458,21 +396,4 @@ class _TimetableScreenState extends State<TimetableScreen> {
     );
   }
 
-  String _getMonthName(int month) {
-    const months = [
-      'January',
-      'February',
-      'March',
-      'April',
-      'May',
-      'June',
-      'July',
-      'August',
-      'September',
-      'October',
-      'November',
-      'December',
-    ];
-    return months[month - 1];
-  }
 }
