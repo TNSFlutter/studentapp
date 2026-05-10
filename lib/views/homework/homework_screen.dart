@@ -198,10 +198,10 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
               const SizedBox(height: 16),
               Text(
                 item.title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black,
+                  color: Theme.of(ctx).colorScheme.onSurface,
                 ),
               ),
               const SizedBox(height: 8),
@@ -209,7 +209,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                 item.formattedHomeworkDate ??
                     item.formattedDate ??
                     (item.homeworkDate ?? ''),
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 13, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -217,10 +217,10 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                   controller: scrollController,
                   child: SelectableText(
                     item.bodyText.replaceAll('\r\n', '\n'),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       height: 1.45,
-                      color: Colors.black87,
+                      color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.87),
                     ),
                   ),
                 ),
@@ -234,7 +234,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                       item.fileImage!.trim().isNotEmpty)
                     OutlinedButton.icon(
                       onPressed: () => showAttachmentDialog(
-                        context,
+                        ctx,
                         AttachmentType.image,
                         item.fileImage!,
                       ),
@@ -245,7 +245,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                       item.pdfImage!.trim().isNotEmpty)
                     OutlinedButton.icon(
                       onPressed: () => showAttachmentDialog(
-                        context,
+                        ctx,
                         AttachmentType.pdf,
                         item.pdfImage!,
                       ),
@@ -256,7 +256,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                   if (item.video != null && item.video!.trim().isNotEmpty)
                     OutlinedButton.icon(
                       onPressed: () => showAttachmentDialog(
-                        context,
+                        ctx,
                         AttachmentType.video,
                         item.video!,
                       ),
@@ -267,7 +267,7 @@ class _HomeworkScreenState extends State<HomeworkScreen> {
                       item.audioImage!.trim().isNotEmpty)
                     OutlinedButton.icon(
                       onPressed: () => showAttachmentDialog(
-                        context,
+                        ctx,
                         AttachmentType.audio,
                         item.audioImage!,
                       ),
@@ -584,9 +584,9 @@ class _HomeworkCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                    if (item.pdfImage != null ||
-                        item.video != null ||
-                        item.audioImage != null)
+                    if ((item.pdfImage?.trim().isNotEmpty ?? false) ||
+                        (item.video?.trim().isNotEmpty ?? false) ||
+                        (item.audioImage?.trim().isNotEmpty ?? false))
                       const SizedBox(width: 6),
                     GestureDetector(
                       onTap: onViewMore,
