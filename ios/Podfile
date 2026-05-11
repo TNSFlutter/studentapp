@@ -51,6 +51,11 @@ post_install do |installer|
     flutter_additional_ios_build_settings(target)
     target.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+      
+      # Exclude Razorpay targets from requiring dSYMs to avoid App Store Connect upload failure
+      if target.name.downcase.include?('razorpay')
+        config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf'
+      end
     end
   end
 end
